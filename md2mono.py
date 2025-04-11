@@ -1,22 +1,16 @@
 
-# md2mono
-# static website/blog generator from Markdown files for easy hosting on Github pages or similar (host need build command feature)
-# styling based on https://owickstrom.github.io/the-monospace-web
-
-# py312 -m venv .venv
+# python -m venv .venv
 # source .venv/bin/activate
 # pip install -r requirements.txt
 # deactivate
 
-# python md2mono.py /website (both md2mono.py and website folder in root)
+# .venv/bin/python md2mono.py /website (both md2mono.py and website folder in root)
 
 import os
 import sys
 import re
 import shutil
 import markdown
-import sass
-import traceback
 from natsort import natsorted
 from datetime import datetime
 # syntax highlight
@@ -49,14 +43,16 @@ LOAD_FOLDER_FLAGS           = False
 AUTHOR                      = "@asyncze"
 X_URL                       = "https://x.com/asyncze"
 DESCRIPTION                 = "Self-funded software engineer"
-GOOGLE_TAG                  = """<script async src="https://www.googletagmanager.com/gtag/js?id=G-FPF1MCLY5P"></script><script>window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config','G-FPF1MCLY5P');</script>"""
+FAVICON                     = ""
+# GOOGLE_TAG                  = """<script async src="https://www.googletagmanager.com/gtag/js?id=G-FPF1MCLY5P"></script><script>window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config','G-FPF1MCLY5P');</script>"""
+GOOGLE_TAG                  = ""
 APP_NAME                    = "Michael Sjöberg"
 SOCIAL_IMAGE                = ""
 
 # for listing all posts on index page
 GLOBAL_POSTS = [] # [ { title, date, url } ]
 
-def write_header(file, title="md2mono", root=0):
+def write_header(file, title="md2mono"):
     file.write("<!DOCTYPE html>\n")
     file.write("""
     <!--
@@ -99,47 +95,54 @@ def write_header(file, title="md2mono", root=0):
     #*%%%%%%%%%%%%%%@@@@@@@@@@@@@@@@@@@@@@%@@@@@@@@@@@@@@@@@@%github.com/asyncze
     -->
     """.replace("    ", ""))
-    file.write("""<html lang="en">""")
+    file.write("<html lang='en'>")
     file.write("<head>")
     # favicon
-    file.write("<link rel='icon' href='/favicon.png'>")
+    file.write(f"""<link rel="icon" href="{ FAVICON if not FAVICON == "" else "data:," }">""")
     # title
-    file.write(f"<title>{title}</title>")
+    file.write(f"<title>{ title }</title>")
     # meta
     file.write("<meta charset='utf-8'>")
     file.write("<meta name='viewport' content='width=device-width, initial-scale=1'>")
-    file.write(f"""<meta name='author' content='{AUTHOR}'>""")
-    file.write(f"""<meta name='description' content="{DESCRIPTION}">""")
-    file.write(f"<meta name='theme-color' content='{APP_THEME}'>")
-    file.write(f"<meta name='application-name' content='{APP_NAME}'>")
-    file.write(f"""<meta name='apple-mobile-web-app-title' content="{title}">""")
+    file.write(f"""<meta name='author' content='{ AUTHOR }'>""")
+    file.write(f"""<meta name='description' content="{ DESCRIPTION }">""")
+    file.write(f"<meta name='theme-color' content='{ APP_THEME }'>")
+    file.write(f"<meta name='application-name' content='{ APP_NAME }'>")
+    file.write(f"""<meta name='apple-mobile-web-app-title' content="{ title }">""")
     file.write("<meta name='apple-mobile-web-app-capable' content='yes'>")
     file.write("<meta name='mobile-web-app-capable' content='yes'>")
-    file.write(f"<meta name='apple-mobile-web-app-status-bar-style' content='{APP_THEME}'>")
+    file.write(f"<meta name='apple-mobile-web-app-status-bar-style' content='{ APP_THEME }'>")
     # social
     file.write("<meta property='og:type' content='website'>")
-    file.write(f"""<meta property='og:title' content="{title}">""")
-    file.write(f"""<meta property='og:description' content="{DESCRIPTION}">""")
-    file.write(f"<meta property='og:image' content='/{SOCIAL_IMAGE}'>")
+    file.write(f"""<meta property='og:title' content="{ title }">""")
+    file.write(f"""<meta property='og:description' content="{ DESCRIPTION }">""")
+    file.write(f"<meta property='og:image' content='/{ SOCIAL_IMAGE }'>")
     # twitter
     file.write("<meta name='twitter:card' content='summary'>")
-    file.write(f"""<meta name='twitter:title' content="{title}">""")
-    file.write(f"""<meta name='twitter:description' content="{DESCRIPTION}">""")
-    file.write(f"<meta name='twitter:image' content='/{SOCIAL_IMAGE}'>")
-    # css
-    with open("style.css", "r") as css_file:
-        content = css_file.read()
-        file.write("<style>")
-        file.write(content)
-        file.write("</style>")
-
-    # import fontawesome
-    file.write("<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css' integrity='sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==' crossorigin='anonymous' referrerpolicy='no-referrer'>")
+    file.write(f"""<meta name='twitter:title' content="{ title }">""")
+    file.write(f"""<meta name='twitter:description' content="{ DESCRIPTION }">""")
+    file.write(f"<meta name='twitter:image' content='/{ SOCIAL_IMAGE }'>")
+    # load font
+    distance_from_root = len(file.name.split("dist/")[1].split("/")) - 1
+    file.write(f"""
+        <style>
+        @font-face {{
+            font-family: "Jet Brains Mono";
+            src: url("{ '../' * distance_from_root }__static/JetBrainsMono[wght].ttf") format("truetype");
+            font-weight: normal bold;
+            font-style: normal;
+        }}
+        </style>
+    """)
+    # inline css
+    with open("reset.css", "r") as reset: file.write(f"<style>{ reset.read() }</style>")
+    with open("style.css", "r") as style: file.write(f"<style>{ style.read() }</style>")
+    # head close tag
     file.write("</head>")
     # -------------------------------------------
     file.write("<body>")
     # google tag
-    file.write(GOOGLE_TAG)
+    file.write(GOOGLE_TAG) if not GOOGLE_TAG == "" else 0
     # page
     file.write("<div class='page'>")
     # nav
@@ -147,30 +150,19 @@ def write_header(file, title="md2mono", root=0):
         nav_file = open(f"{SOURCE_PATH}/nav.md", "r")
         nav_content = nav_file.read()
         nav_file.close()
-        if len(nav_content) != 0:
+        if len(nav_content) > 0:
             file.write("<div class='nav no-print'>")
-            file.write(markdown.markdown(nav_content))
-            # theme toggle
-            if ALLOW_CHANGE_THEME:
-                file.write("""
-                    <input type="checkbox" class="sr-only" id="theme">
-                    <label for="theme" class="toggle">
-                        <i class='fa-solid fa-adjust' style='font-size:120%'></i>
-                    </label>
-                """)
-            file.write("</div>")
-        elif "index.html" not in file.name:
-            file.write("<div class='nav no-print'>")
-            # render home link on pages if nav is empty
-            file.write("<p><a href='/'>Home</a></p>")
-            # theme toggle
-            if ALLOW_CHANGE_THEME:
-                file.write("""
-                    <input type="checkbox" class="sr-only" id="theme">
-                    <label for="theme" class="toggle">
-                        <i class='fa-solid fa-adjust' style='font-size:120%'></i>
-                    </label>
-                """)
+
+            nav_content_html = markdown.markdown(nav_content)
+            nav_content_html = nav_content_html.replace("</h2>", "") + """
+                <label class="invert-toggle-label">
+                    <input type="checkbox" class="invert-toggle"> Invert
+                </label>
+            """.replace("    ", "")
+            nav_content_html = nav_content_html + "</h2>"
+            
+            file.write(nav_content_html)
+            
             file.write("</div>")
         else:
             # empty nav for aligned padding across pages
@@ -180,11 +172,21 @@ def write_footer(file):
     # credits
     if file.name.split("/")[-1] == "index.html":
         file.write("""<div id="footer" class="no-print">""")
-        file.write(f"""<p><i class="fa-regular fa-copyright"></i> { datetime.now().year } <a href="{X_URL}">{AUTHOR}</p>""")
+        file.write(f"""<p>Ⓒ { datetime.now().year } <a href="{ X_URL }">{ AUTHOR }</p>""")
         file.write("</div>")
     
     file.write("</div>") # ./page
     # end of file
+    file.write("""
+        <script>
+            const invertToggle = document.querySelector(".invert-toggle");
+            function onInvertToggle() {
+                document.documentElement.classList.toggle("invert", invertToggle.checked);
+            }
+            invertToggle.addEventListener("change", onInvertToggle);
+            onInvertToggle();
+        </script>
+    """)
     file.write("</body>")
     file.write("</html>")
 
@@ -197,13 +199,29 @@ def generate_checklist_from_list(file_content):
     result = []
     for line in file_content.split("\n"):
         if line == "<!-- checklist -->": checklist = True
-
-        if "<ul>" in line:
+        
+        if checklist == True and "<ul>" in line:
             result.append("<ul class='checklist'>")
         elif checklist == True and "[X]" in line:
-            result.append(line.replace("[X]", "<span style='color:#31D06A'><i class='fa-solid fa-check'></i></span>"))
+            line = line.split("[X]")[1].strip().replace("</li>", "")
+            result.append(f"""
+                <li>
+                    <label>
+                        <input type="checkbox" checked disabled>
+                        <span>{ line }</span>
+                    </label>
+                </li>
+            """)
         elif checklist == True and "[ ]" in line:
-            result.append(line.replace("[ ]", "<span class='text-muted'>–</span>"))
+            line = line.split("[ ]")[1].strip().replace("</li>", "")
+            result.append(f"""
+                <li>
+                    <label>
+                        <input type="checkbox" disabled>
+                        <span>{ line }</span>
+                    </label>
+                </li>
+            """)
         elif checklist == True and "</ul>" in line:
             checklist = False
             result.append(line)
@@ -260,8 +278,8 @@ def generate_post_index(dir_page, FLAG_SORT, FLAG_COL, posts_lst=[], posts_dict=
             dir_page.write("</dl>")
 
 def replace_hr_with_border(file_content, toc=False):
-    file_content = re.sub(r"<hr />\n<ul>", f"<p>In this post:</p>" + r"<ul class='toc'>\n" if toc else "", file_content)
-    file_content = re.sub(r"</ul>\n<hr />", r"</ul><hr>", file_content)
+    file_content = re.sub(r"<hr />\n<ul>", f"<h2>Contents</h2>" + r"<ul class='toc'>\n" if toc else "", file_content)
+    file_content = re.sub(r"</ul>\n<hr />", r"</ul>", file_content)
     return file_content
 
 def syntax_highlight(html_content):
@@ -277,9 +295,11 @@ def syntax_highlight(html_content):
                 highlighted_code = highlight(code_content, lexer, formatter)
                 code_block.parent.unwrap()
                 code_block.replace_with(BeautifulSoup(highlighted_code, "html.parser"))
-            except:
-                pass
+            
+            except: pass
+        
         html_content = str(soup)
+    
     return html_content
 
 def parse_flags(line):
@@ -293,15 +313,14 @@ def parse_flags(line):
             if key == "col": FLAG_COL = int(value)
             if key == "sort": FLAG_SORT = "date" if value == "date" else "name"
             if key == "desc": FLAG_DESC = str(value)
+    
     return FLAG_TOC, FLAG_TIME, FLAG_COL, FLAG_SORT, FLAG_DESC
 
 def main_driver():
     # create dist folder
-    # if os.path.isdir(DIST_PATH): shutil.rmtree(DIST_PATH)
     os.mkdir(DIST_PATH)
     # copy source __static folder to dist (images etc)
-    if os.path.exists(f"{SOURCE_PATH}/__static"):
-        os.system(f"cp -r {SOURCE_PATH}/__static {DIST_PATH}")
+    if os.path.exists(f"{SOURCE_PATH}/__static"): os.system(f"cp -r {SOURCE_PATH}/__static {DIST_PATH}")
     # copy other stuff in source folder
     for file in os.listdir(SOURCE_PATH):
         if not file.startswith(".") and not file == "nav.md" and not os.path.isdir(f"{SOURCE_PATH}/{file}"):
@@ -330,6 +349,7 @@ def main_driver():
                 for root, dirs, posts in os.walk(f"{SOURCE_PATH}/{dir_}"):
                     root = root.replace(f"{SOURCE_PATH}/", "")
                     if ".git" not in root and "/_" not in root: os.mkdir(f"{DIST_PATH}/{root.lower()}")
+                    # for each post in dir_
                     for post in posts if ".git" not in root and "/_" not in root else []:
                         try:
                             if post != "__flags" and post != "README.md" and not post.startswith("_") and post.split(".")[1] in { "md" }:
@@ -338,30 +358,75 @@ def main_driver():
                                 post_format = post.split(".")[1]
                                 category, subcategory = None, None
                                 date = False
+                                date_formatted = None
+                                date_is_outdated = False
                                 # title from file name
                                 post_title = post_name.replace("-", " ")
+                                post_subtitle = None
                                 post_content = post_file.read()
-                                # TODO: refactor this as helper function?
+                                # todo : refactor this as helper function?
                                 # create page
                                 with open(f"{DIST_PATH}/{root}/{post_name.replace('#', '')}.html", "w+") as tmp_file:
                                     # title
-                                    try: post_title = post_content.split("\n")[0].split("# ")[1]
+                                    try:
+                                        post_title = post_content.split("\n")[0].split("# ")[1]
+                                        post_content = "\n".join(post_content.split("\n")[2:]) # skip two lines (assuming empty line after each)
                                     except: pass
+                                    
                                     # date
-                                    if not date:
-                                        try: date = post_content.split("\n")[2].split("<mark>")[1].split("</mark>")[0]
-                                        except:
-                                            try: date = post_content.split("\n")[2].split("*")[1]
-                                            except: pass
-                                    # check if date is older than 2 years
-                                    if date:
-                                        try: date_is_outdated = True if datetime.strptime(date, "%B %d, %Y").year + 2 < datetime.now().year else False
-                                        except: date_is_outdated = False
+                                    try:
+                                        date = post_content.split("\n")[0].split("*")[1]
+                                            
+                                        date_formatted = datetime.strptime(date, "%B %d, %Y")
+                                        date_formatted = date_formatted.strftime("%Y-%m-%d")
+
+                                        date_is_outdated = True if datetime.strptime(date, "%B %d, %Y").year + 2 < datetime.now().year else False
+                                            
+                                        post_content = "\n".join(post_content.split("\n")[2:])
+                                    except: pass
+                                    
+                                    # subtitle
+                                    try:
+                                        post_subtitle = post_content.split("\n")[0]
+                                        if "---" in post_subtitle:
+                                            post_subtitle = None
+                                        else:
+                                            post_subtitle = markdown.markdown(post_subtitle).replace("<p>", "").replace("</p>", "")
+                                            post_content = "\n".join(post_content.split("\n")[2:])
+                                    except: pass
+                                    
+                                    # create post title
+                                    post_content = f"""
+                                        <table class="header">
+                                            <tbody>
+                                                <tr>
+                                                    <td colspan="2" rowspan="2" class="width-auto">
+                                                        <h1 class="title">{ post_title }</h1>
+                                                        <span class="subtitle">{ post_subtitle if not post_subtitle == None else "" }</span>
+                                                    </td>
+                                                    <th>Date</th>
+                                                    <td class="width-min">
+                                                        <time style="white-space: pre;">{ "<mark>" if date_is_outdated else "" }{ date_formatted }{ "</mark>" if date_is_outdated else "" }</time>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <th>Author</th>
+                                                    <td class="width-min">
+                                                        <a href="{ X_URL }">
+                                                            <cite>{ AUTHOR }</cite>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    """.replace("    ", "") + post_content
+
                                     # categories
                                     try: category, subcategory = root.split("/")[1], root.split("/")[2]
                                     except:
                                         try: category = root.split("/")[1]
                                         except: pass
+                                    
                                     # category and subcategory
                                     if category and subcategory:
                                         try:
@@ -371,6 +436,7 @@ def main_driver():
                                         if not subcategory in posts_dict[category]: posts_dict[category][subcategory] = []
                                         # append
                                         posts_dict[category][subcategory].append({ "title": post_title, "date": date, "url": f"{root.lower()}/{post_name.lower().replace('#', '')}" })
+                                    
                                     # category
                                     elif category:
                                         try:
@@ -389,13 +455,14 @@ def main_driver():
                                         except: date = False
                                         # append to posts_lst
                                         posts_lst.append({ "title": post_title, "date": date, "url": f"{root.lower()}/{post_name.lower().replace('#', '')}" })
+                                    
                                     GLOBAL_POSTS.append({ "title": post_title, "date": date, "url": f"{root.lower()}/{post_name.lower().replace('#', '')}" })
                                     # generate anchors and inject index
                                     post_content = generate_and_inject_index(post_content)
                                     # write
                                     write_header(tmp_file, title=post_title)
                                     # write outdated notice
-                                    if date_is_outdated: tmp_file.write(f"<p class='text-center' style='margin-top:0;'><mark>This post is more than two years old and could be outdated</mark></p>")
+                                    # if date_is_outdated: tmp_file.write(f"<p class='text-center' style='margin-top:0;'><mark>This post is more than two years old</mark></p>")
                                     html_content = markdown.markdown(post_content, extensions=["fenced_code", "tables"])
                                     # replace hr with border (for table of contents)
                                     html_content = replace_hr_with_border(html_content, toc=True)
@@ -405,15 +472,13 @@ def main_driver():
                                     tmp_file.write(html_content)
                                     write_footer(tmp_file)
                                     post_file.close()
-                        except Exception as error:
-                            # print(traceback.format_exc())
-                            pass
+                        except Exception as error: pass
+                
                 # write page title
                 dir_page.write(f"<h1>{dir_.title()}</h1>")
                 if FLAG_DESC: dir_page.write(f"<p>{FLAG_DESC}</p>")
-                # write posts index
+                
                 generate_post_index(dir_page, FLAG_SORT, FLAG_COL, posts_lst, posts_dict)
-                # write footer
                 write_footer(dir_page)
 
     # create html page for each md file in pages folder
@@ -427,24 +492,89 @@ def main_driver():
                     file = open(f"{root}/{file}", "r")
                     file_content = file.read()
                     file_content = file_content.split("\n")
+                    
                     # flags
-                    if (file_content[0].startswith("-* ")):
-                        FLAG_TOC, FLAG_TIME, FLAG_COL, FLAG_SORT, FLAG_DESC = parse_flags(file_content[0])
-                        # skip empty line following flags (if any)
-                        if (len(file_content[1]) == 0):
+                    # if (file_content[0].startswith("-* ")):
+                    #     FLAG_TOC, FLAG_TIME, FLAG_COL, FLAG_SORT, FLAG_DESC = parse_flags(file_content[0])
+                    #     # skip empty line following flags (if any)
+                    #     if (len(file_content[1]) == 0):
+                    #         file_content = file_content[2:]
+                    #     else:
+                    #         file_content = file_content[1:]
+                    # find and use first line starting with # as title
+                    
+                    title = PAGE_TITLE # default title
+                    
+                    # for line in file_content:
+                    #     if line.startswith("# "):
+                    #         title = line.split("# ")[1]
+                    #         # remove links in title
+                    #         title = title.split("[")[0]
+                    #         break
+
+                    # title
+                    try:
+                        if "#" in file_content[0]:
+                            title = file_content[0].split("# ")[1]
+                            file_content = file_content[2:] # skip two lines (assuming empty line after each)
+                    except: pass
+                    
+                    # date
+                    date = None
+                    date_formatted = None
+                    if not date:
+                        try:
+                            if "*" in file_content[0]:
+                                date = file_content[0].split("*")[1]
+                            
+                                date_formatted = datetime.strptime(date, "%B %d, %Y")
+                                date_formatted = date_formatted.strftime("%Y-%m-%d")
+                            
+                                file_content = file_content[2:] # skip two lines (assuming empty line after each)
+                        except: pass
+                    
+                    # subtitle
+                    page_subtitle = None
+                    try:
+                        if "---" in file_content[0]:
+                            page_subtitle = None
                             file_content = file_content[2:]
                         else:
-                            file_content = file_content[1:]
-                    # find and use first line starting with # as title
-                    title = PAGE_TITLE
-                    for line in file_content:
-                        if line.startswith("# "):
-                            title = line.split("# ")[1]
-                            # remove links in title
-                            title = title.split("[")[0]
-                            break
-                    # join 
+                            page_subtitle = markdown.markdown(file_content[0]).replace("<p>", "").replace("</p>", "")
+                            file_content = file_content[2:]
+                    except: pass
+
+                    # remove hr on some pages
+                    if "---" in file_content[0]: file_content = file_content[2:]
+
                     file_content = "\n".join(file_content)
+
+                    # create page header
+                    if "index" not in file_name: file_content = f"""
+                        <table class="header">
+                            <tbody>
+                                <tr>
+                                    <td colspan="2" rowspan="2" class="width-auto">
+                                        <h1 class="title">{ title }</h1>
+                                        <span class="subtitle">{ page_subtitle if not page_subtitle == None else "" }</span>
+                                    </td>
+                                    <th>Updated</th>
+                                    <td class="width-min">
+                                        <time style="white-space: pre;">{ date_formatted }</time>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Author</th>
+                                    <td class="width-min">
+                                        <a href="{ X_URL }">
+                                            <cite>{ AUTHOR }</cite>
+                                        </a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    """.replace("    ", "") + file_content
+
                     # add updated time
                     if FLAG_TIME: file_content = re.sub(r"# (.*)", r"#\1" + f"\n*Updated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*", file_content, count=1)
                     # generate anchors and inject index
@@ -465,7 +595,7 @@ def main_driver():
                     tmp_file.write(file_content)
                     # list recent posts on index
                     if POSTS_ON_INDEX and file_name == "index":
-                        tmp_file.write("<hr>")
+                        # tmp_file.write("<hr>")
                         generate_post_index(tmp_file, FLAG_SORT, FLAG_COL, GLOBAL_POSTS)
                     if FLAG_COL: tmp_file.write("</div>")
                     write_footer(tmp_file)
